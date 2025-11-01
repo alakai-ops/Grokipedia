@@ -3,6 +3,7 @@ import GrokipediaIcon from './icons/GrokipediaIcon';
 import BookmarkIcon from './icons/BookmarkIcon';
 import ArrowLeftIcon from './icons/ArrowLeftIcon';
 import MindMapIcon from './icons/MindMapIcon';
+import ShareIcon from './icons/ShareIcon';
 
 interface HeaderProps {
   onLogoClick: () => void;
@@ -14,6 +15,8 @@ interface HeaderProps {
   isSaved: boolean;
   onExploreClick: () => void;
   showExplore: boolean;
+  onShareClick: () => void;
+  showShare: boolean;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -26,6 +29,8 @@ const Header: React.FC<HeaderProps> = ({
   isSaved,
   onExploreClick,
   showExplore,
+  onShareClick,
+  showShare,
 }) => {
   return (
     <header className="fixed top-0 left-0 right-0 z-10 bg-black/50 backdrop-blur-md border-b border-gray-800">
@@ -49,6 +54,16 @@ const Header: React.FC<HeaderProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
+             {showShare && (
+                <button
+                    onClick={onShareClick}
+                    className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+                    aria-label="Share article"
+                    title="Share article"
+                >
+                    <ShareIcon className="w-6 h-6" />
+                </button>
+            )}
              {showExplore && (
                 <button
                     onClick={onExploreClick}

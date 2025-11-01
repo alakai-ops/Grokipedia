@@ -17,6 +17,7 @@ import type { SearchResult, ArticleData, SavedArticle, MindMapData, ErrorReportD
 type View = 'welcome' | 'searching' | 'results' | 'article' | 'saved' | 'mindmap';
 
 const ITEMS_PER_PAGE = 10;
+const MAX_HISTORY_ITEMS = 15;
 
 const AppComponent: React.FC = () => {
   const [view, setView] = useState<View>('welcome');
@@ -31,6 +32,8 @@ const AppComponent: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveModalArticle, setSaveModalArticle] = useState<ArticleData | null>(null);
+  const [canShare, setCanShare] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
 
   useEffect(() => {
@@ -39,9 +42,14 @@ const AppComponent: React.FC = () => {
       if (storedArticles) {
         setSavedArticles(JSON.parse(storedArticles));
       }
+       const storedHistory = localStorage.getItem('grokipedia-history');
+      if (storedHistory) {
+        setSearchHistory(JSON.parse(storedHistory));
+      }
     } catch (e) {
-      console.error("Failed to load saved articles:", e);
+      console.error("Failed to load from local storage:", e);
     }
+    setCanShare(!!navigator.share);
   }, []);
 
   useEffect(() => {
@@ -51,6 +59,14 @@ const AppComponent: React.FC = () => {
       console.error("Failed to save articles:", e);
     }
   }, [savedArticles]);
+  
+  useEffect(() => {
+    try {
+      localStorage.setItem('grokipedia-history', JSON.stringify(searchHistory));
+    } catch (e) {
+      console.error("Failed to save history:", e);
+    }
+  }, [searchHistory]);
 
   const handleSearch = useCallback(async (searchQuery: string, page: number = 1) => {
     if (!searchQuery.trim()) return;
@@ -60,6 +76,13 @@ const AppComponent: React.FC = () => {
     setQuery(searchQuery);
     setCurrentPage(page);
     setView('searching');
+    
+    // Update search history
+    const trimmedQuery = searchQuery.trim();
+    setSearchHistory(prev => {
+        const newHistory = [trimmedQuery, ...prev.filter(item => item.toLowerCase() !== trimmedQuery.toLowerCase())];
+        return newHistory.slice(0, MAX_HISTORY_ITEMS);
+    });
     
     const endpoint = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchQuery)}&srlimit=${ITEMS_PER_PAGE}&sroffset=${(page - 1) * ITEMS_PER_PAGE}&format=json&origin=*`;
 
@@ -119,6 +142,23 @@ const AppComponent: React.FC = () => {
     if (!saveModalArticle) return;
     await exportService.exportArticleAsEpub(saveModalArticle);
   };
+  
+  const handleShare = async () => {
+    if (!currentArticle || !navigator.share) return;
+    
+    const shareData = {
+      title: `Grokipedia: ${currentArticle.query}`,
+      text: `Check out this Grokipedia article on "${currentArticle.query}"`,
+      url: `https://grokipedia.com/page/${encodeURIComponent(currentArticle.query.replace(/ /g, '_'))}`
+    };
+
+    try {
+      await navigator.share(shareData);
+    } catch (err) {
+      console.error("Share failed:", err);
+      // Fail silently as the user may have cancelled the share action
+    }
+  };
 
   const handleViewSavedArticle = (article: SavedArticle) => {
     setCurrentArticle(article);
@@ -167,16 +207,27 @@ const AppComponent: React.FC = () => {
     }
   };
   
+  const handleClearHistory = () => {
+    setSearchHistory([]);
+  };
+  
   const renderContent = () => {
     if (isLoading && view === 'searching') return <LoadingSpinner />;
     
     switch (view) {
       case 'welcome':
-        return <Welcome onSearch={(q) => handleSearch(q, 1)} isLoading={isLoading} />;
+        return (
+          <Welcome
+            onSearch={(q) => handleSearch(q, 1)}
+            isLoading={isLoading}
+            searchHistory={searchHistory}
+            onClearHistory={handleClearHistory}
+          />
+        );
       case 'results':
         return (
           <>
-            <div className="mb-8"><SearchBar onSearch={(q) => handleSearch(q, 1)} isLoading={isLoading} initialQuery={query} /></div>
+            <div className="mb-8"><SearchBar onSearch={(q) => handleSearch(q, 1)} isLoading={isLoading} initialQuery={query} searchHistory={searchHistory} /></div>
             <SearchResults 
               query={query}
               results={searchResults}
@@ -195,7 +246,14 @@ const AppComponent: React.FC = () => {
       case 'mindmap':
         return mindMapData ? <MindMap centerNode={mindMapCenterNode} data={mindMapData} /> : <LoadingSpinner />;
       default:
-        return <Welcome onSearch={(q) => handleSearch(q, 1)} isLoading={isLoading} />;
+        return (
+          <Welcome
+            onSearch={(q) => handleSearch(q, 1)}
+            isLoading={isLoading}
+            searchHistory={searchHistory}
+            onClearHistory={handleClearHistory}
+          />
+        );
     }
   };
 
@@ -213,6 +271,8 @@ const AppComponent: React.FC = () => {
         isSaved={isArticleSaved}
         onExploreClick={() => currentArticle && handleExplore(currentArticle.query)}
         showExplore={view === 'article'}
+        onShareClick={handleShare}
+        showShare={view === 'article' && canShare}
       />
       <main className="max-w-3xl mx-auto px-4 pt-24 pb-12">
         {error && <div className="bg-red-900/50 border border-red-700 text-red-300 p-4 rounded-lg mb-6">{error}</div>}
