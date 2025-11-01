@@ -193,7 +193,7 @@ const AppComponent: React.FC = () => {
       case 'saved':
         return <SavedArticles articles={savedArticles} onView={handleViewSavedArticle} onRemove={handleRemoveSavedArticle} onExplore={handleExplore}/>;
       case 'mindmap':
-        return mindMapData ? <MindMap centerNode={mindMapCenterNode} data={mindMapData} onNodeClick={(nodeTitle) => handleSearch(nodeTitle, 1)}/> : <LoadingSpinner />;
+        return mindMapData ? <MindMap centerNode={mindMapCenterNode} data={mindMapData} /> : <LoadingSpinner />;
       default:
         return <Welcome onSearch={(q) => handleSearch(q, 1)} isLoading={isLoading} />;
     }

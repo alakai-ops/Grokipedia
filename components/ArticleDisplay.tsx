@@ -156,6 +156,34 @@ const ArticleDisplay: React.FC<ArticleDisplayProps> = ({ article, onLinkClick })
       .grok-reader-article .catlinks {
         display: none !important;
       }
+      
+      /* Responsive fixes for text wrapping and overflow */
+      .grok-reader-article {
+        overflow-wrap: break-word;
+        word-wrap: break-word; /* For older browsers */
+      }
+
+      .grok-reader-article img {
+        max-width: 100% !important;
+        height: auto !important;
+      }
+
+      .grok-reader-article pre, .grok-reader-article code {
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-x: auto;
+        display: block;
+        background-color: #f1f5f9;
+        padding: 0.75em;
+        border-radius: 6px;
+      }
+
+      .grok-reader-article table.wikitable {
+          display: block;
+          max-width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+      }
     `;
     document.head.appendChild(style);
 
