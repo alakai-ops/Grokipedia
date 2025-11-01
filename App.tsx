@@ -9,7 +9,9 @@ import SavedArticles from './components/SavedArticles';
 import MindMap from './components/MindMap';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorReport from './components/ErrorReport';
+import SaveOptionsModal from './components/SaveOptionsModal';
 import * as geminiService from './services/geminiService';
+import * as exportService from './services/exportService';
 import type { SearchResult, ArticleData, SavedArticle, MindMapData, ErrorReportData } from './types';
 
 type View = 'welcome' | 'searching' | 'results' | 'article' | 'saved' | 'mindmap';
@@ -28,6 +30,8 @@ const AppComponent: React.FC = () => {
   const [mindMapCenterNode, setMindMapCenterNode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveModalArticle, setSaveModalArticle] = useState<ArticleData | null>(null);
+
 
   useEffect(() => {
     try {
@@ -102,13 +106,18 @@ const AppComponent: React.FC = () => {
     }
   }, [searchResults.length]);
 
-  const handleSaveArticle = () => {
-    if (!currentArticle) return;
-    if (savedArticles.some(a => a.query === currentArticle.query)) {
-      setSavedArticles(savedArticles.filter(a => a.query !== currentArticle.query));
+  const handleToggleBookmark = () => {
+    if (!saveModalArticle) return;
+    if (savedArticles.some(a => a.query === saveModalArticle.query)) {
+      setSavedArticles(savedArticles.filter(a => a.query !== saveModalArticle.query));
     } else {
-      setSavedArticles([...savedArticles, currentArticle]);
+      setSavedArticles([...savedArticles, saveModalArticle]);
     }
+  };
+
+  const handleDownloadEpub = async () => {
+    if (!saveModalArticle) return;
+    await exportService.exportArticleAsEpub(saveModalArticle);
   };
 
   const handleViewSavedArticle = (article: SavedArticle) => {
@@ -180,7 +189,7 @@ const AppComponent: React.FC = () => {
           </>
         );
       case 'article':
-        return currentArticle ? <ArticleDisplay article={currentArticle} /> : <LoadingSpinner />;
+        return currentArticle ? <ArticleDisplay article={currentArticle} onLinkClick={handleArticleClick} /> : <LoadingSpinner />;
       case 'saved':
         return <SavedArticles articles={savedArticles} onView={handleViewSavedArticle} onRemove={handleRemoveSavedArticle} onExplore={handleExplore}/>;
       case 'mindmap':
@@ -199,7 +208,7 @@ const AppComponent: React.FC = () => {
         onSavedClick={() => setView('saved')}
         onBackClick={handleBack}
         showBack={view === 'article' || view === 'results' || view === 'saved' || view === 'mindmap'}
-        onSaveClick={handleSaveArticle}
+        onSaveClick={() => setSaveModalArticle(currentArticle)}
         showSave={view === 'article'}
         isSaved={isArticleSaved}
         onExploreClick={() => currentArticle && handleExplore(currentArticle.query)}
@@ -209,6 +218,19 @@ const AppComponent: React.FC = () => {
         {error && <div className="bg-red-900/50 border border-red-700 text-red-300 p-4 rounded-lg mb-6">{error}</div>}
         {renderContent()}
       </main>
+      {saveModalArticle && (
+        <SaveOptionsModal
+          isOpen={!!saveModalArticle}
+          onClose={() => setSaveModalArticle(null)}
+          isSaved={savedArticles.some(a => a.query === saveModalArticle.query)}
+          onToggleBookmark={handleToggleBookmark}
+          onDownloadEpub={handleDownloadEpub}
+          onViewSaved={() => {
+            setView('saved');
+            setSaveModalArticle(null);
+          }}
+        />
+      )}
     </div>
   );
 };

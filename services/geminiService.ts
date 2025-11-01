@@ -1,6 +1,6 @@
 // Fix: Implement Gemini service functions for mind map generation and error analysis.
 import { GoogleGenAI, Type } from '@google/genai';
-import type { MindMapData, ErrorReportData } from '../types';
+import type { MindMapData, ErrorReportData, VisualIssueReport } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
@@ -79,5 +79,45 @@ export const analyzeError = async (report: ErrorReportData): Promise<string> => 
     } catch (error) {
         console.error("Error analyzing error report:", error);
         return "An error occurred while trying to analyze the report with Gemini.";
+    }
+};
+
+export const analyzeVisualIssue = async (report: VisualIssueReport): Promise<string> => {
+    try {
+        const model = 'gemini-2.5-pro';
+        const prompt = `
+            Analyze a user-reported visual/layout issue for an article in the Grokipedia mobile experience app.
+            The app renders Wikipedia content in a custom "reader mode". It programmatically parses the article HTML,
+            separates main text from side content (like infoboxes, images with classes .infobox, .thumb, .tright, .floatright), 
+            and displays them in a responsive two-column layout on larger screens (main content left, side content right).
+            
+            **User Report:**
+            - Article Title: "${report.articleTitle}"
+            - User's Description of Problem: "${report.userDescription}"
+
+            **Analysis Task:**
+            Based on the user's description and the raw article HTML below, provide a technical explanation of the likely root cause of the visual problem.
+            Consider common issues with parsing and styling external HTML:
+            1. Are there non-standard class names for infoboxes or floated elements that the app's parser might be missing?
+            2. Is there unusual nested content or table structure that could break the layout?
+            3. Could inline styles in the source HTML be overriding the app's CSS?
+
+            Suggest a specific code or CSS change to fix the issue. Format the response in Markdown.
+
+            **Raw Article HTML Snippet (first 4000 chars):**
+            \`\`\`html
+            ${report.articleHtml.substring(0, 4000)}
+            \`\`\`
+        `;
+        
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: prompt,
+        });
+
+        return response.text;
+    } catch (error) {
+        console.error("Error analyzing visual issue:", error);
+        return "An error occurred while trying to analyze the visual issue with Gemini.";
     }
 };

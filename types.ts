@@ -26,3 +26,9 @@ export interface ErrorReportData {
   url: string;
   details: string; // for gemini report
 }
+
+export interface VisualIssueReport {
+  articleTitle: string;
+  articleHtml: string;
+  userDescription: string;
+}
