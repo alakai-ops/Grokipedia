@@ -13,6 +13,7 @@ import SaveOptionsModal from './components/SaveOptionsModal';
 import * as geminiService from './services/geminiService';
 import * as exportService from './services/exportService';
 import * as grokipediaService from './services/grokipediaService';
+import { ScrapingError } from './services/grokipediaService';
 import type { SearchResult, ArticleData, SavedArticle, MindMapData, ErrorReportData } from './types';
 
 type View = 'welcome' | 'searching' | 'results' | 'article' | 'saved' | 'mindmap';
@@ -92,7 +93,7 @@ const AppComponent: React.FC = () => {
     } catch (e: any) {
       const offset = (page - 1) * ITEMS_PER_PAGE;
       const searchUrl = `${grokipediaService.BASE_URL}/w/index.php?search=${encodeURIComponent(searchQuery)}&limit=${ITEMS_PER_PAGE}&offset=${offset}`;
-      setGlobalError({
+      const report: ErrorReportData = {
         error: `Failed to fetch search results for "${searchQuery}". The website might be temporarily unavailable or has changed its structure.`,
         rawError: e.toString(),
         targetUrl: searchUrl,
@@ -100,7 +101,13 @@ const AppComponent: React.FC = () => {
         url: window.location.href,
         userAgent: navigator.userAgent,
         details: ''
-      });
+      };
+      if (e instanceof ScrapingError) {
+          report.rawHtmlSnippet = e.htmlText;
+          report.scrapingStage = e.stage;
+          report.failedSelector = e.selector;
+      }
+      setGlobalError(report);
       setView('welcome');
     } finally {
       setIsLoading(false);
@@ -119,15 +126,21 @@ const AppComponent: React.FC = () => {
       setView('article');
     } catch (e: any) {
       const articleUrl = `${grokipediaService.BASE_URL}/page/${encodeURIComponent(title.replace(/ /g, '_'))}`;
-      setGlobalError({
-        error: `Failed to load the article "${title}". It might not exist or there was a network issue.`,
-        rawError: e.toString(),
-        targetUrl: articleUrl,
-        timestamp: new Date().toISOString(),
-        url: window.location.href,
-        userAgent: navigator.userAgent,
-        details: ''
-      });
+       const report: ErrorReportData = {
+            error: `Failed to load the article "${title}". It might not exist or there was a network issue.`,
+            rawError: e.toString(),
+            targetUrl: articleUrl,
+            timestamp: new Date().toISOString(),
+            url: window.location.href,
+            userAgent: navigator.userAgent,
+            details: ''
+      };
+       if (e instanceof ScrapingError) {
+          report.rawHtmlSnippet = e.htmlText;
+          report.scrapingStage = e.stage;
+          report.failedSelector = e.selector;
+      }
+      setGlobalError(report);
       setView(searchResults.length > 0 ? 'results' : 'welcome');
     } finally {
       setIsLoading(false);

@@ -56,13 +56,21 @@ export const analyzeError = async (report: ErrorReportData): Promise<string> => 
             Analyze the following frontend application error report from Grokipedia mobile experience app.
             The app's purpose is to be a mobile-friendly wrapper for grokipedia.com, and it scrapes the website directly.
             Provide a concise, technical explanation of the likely root cause and suggest a potential solution or debugging steps.
-            Consider CORS issues (TypeError: Failed to fetch), network issues, website HTML structure changes (scraping errors), or React rendering bugs.
-            Format the response in Markdown.
+            
+            **CRITICAL CONTEXT: This is a web scraping app. Errors are often due to the website's HTML structure changing.**
+            If a "Scraping Trace" is provided, focus the analysis on why the app's scraping logic failed. 
+            Compare the "Failed Selector" with the "Raw HTML Snippet" to identify the mismatch and suggest a corrected CSS selector.
 
             **Error Details:**
             - User-Facing Message: ${report.error}
             - Raw Error/Exception: ${report.rawError || 'N/A'}
             - Failed URL: ${report.targetUrl || 'N/A'}
+            
+            **Scraping Trace (if available):**
+            - Stage: ${report.scrapingStage || 'N/A'}
+            - Failed Selector: \`${report.failedSelector || 'N/A'}\`
+
+            **Timestamps & Environment:**
             - Timestamp: ${report.timestamp}
             - App URL: ${report.url}
             - User Agent: ${report.userAgent}
@@ -70,6 +78,11 @@ export const analyzeError = async (report: ErrorReportData): Promise<string> => 
             **React Component Stack (if applicable):**
             \`\`\`
             ${report.componentStack || 'N/A'}
+            \`\`\`
+            
+            **Raw HTML Snippet (if scraping failed):**
+            \`\`\`html
+            ${report.rawHtmlSnippet || 'N/A'}
             \`\`\`
         `;
         

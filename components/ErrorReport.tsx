@@ -44,6 +44,11 @@ ${report.error}
 ${report.rawError || 'N/A'}
 
 **Failed URL:** ${report.targetUrl || 'N/A'}
+
+**Scraping Trace:**
+- Stage: ${report.scrapingStage || 'N/A'}
+- Selector: \`${report.failedSelector || 'N/A'}\`
+
 **Timestamp:** ${report.timestamp}
 **App URL:** ${report.url}
 **User Agent:** ${report.userAgent}
@@ -51,6 +56,11 @@ ${report.rawError || 'N/A'}
 **Component Stack:**
 \`\`\`
 ${report.componentStack || 'N/A'}
+\`\`\`
+
+**Raw HTML Snippet (first 1000 chars):**
+\`\`\`html
+${(report.rawHtmlSnippet || 'N/A').substring(0, 1000)}
 \`\`\`
     `;
     navigator.clipboard.writeText(reportString.trim());
@@ -74,9 +84,12 @@ ${report.componentStack || 'N/A'}
             <details className="text-sm text-gray-400 bg-black/30 p-3 rounded-md">
                 <summary className="cursor-pointer font-medium hover:text-gray-200">Show Technical Details</summary>
                 <div className="pt-3 mt-2 border-t border-gray-700/50 space-y-2 font-mono text-xs">
+                    {report.scrapingStage && <div><strong className="text-gray-500">Scraping Stage:</strong> <pre className="whitespace-pre-wrap">{report.scrapingStage}</pre></div>}
+                    {report.failedSelector && <div><strong className="text-gray-500">Failed Selector:</strong> <pre className="whitespace-pre-wrap">{report.failedSelector}</pre></div>}
                     {report.rawError && <div><strong className="text-gray-500">Raw Error:</strong> <pre className="whitespace-pre-wrap">{report.rawError}</pre></div>}
                     {report.targetUrl && <div><strong className="text-gray-500">Target URL:</strong> <pre className="whitespace-pre-wrap break-all">{report.targetUrl}</pre></div>}
                     {report.componentStack && <div><strong className="text-gray-500">Component Stack:</strong> <pre className="whitespace-pre-wrap">{report.componentStack}</pre></div>}
+                    {report.rawHtmlSnippet && <div><strong className="text-gray-500">Raw HTML Snippet:</strong> <pre className="whitespace-pre-wrap bg-black/50 p-2 rounded mt-1">{report.rawHtmlSnippet.substring(0, 1000)}...</pre></div>}
                     <div><strong className="text-gray-500">App URL:</strong> {report.url}</div>
                     <div><strong className="text-gray-500">Timestamp:</strong> {report.timestamp}</div>
                     <div><strong className="text-gray-500">User Agent:</strong> {report.userAgent}</div>

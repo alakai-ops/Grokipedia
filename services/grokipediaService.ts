@@ -3,8 +3,24 @@ import type { SearchResult } from '../types';
 export const BASE_URL = 'https://grokipedia.com';
 const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
+/**
+ * Custom error class to hold detailed context during a scraping failure.
+ */
+export class ScrapingError extends Error {
+    htmlText: string;
+    stage: string; // The logical step where the error occurred
+    selector?: string; // The CSS selector that failed, if applicable
 
-const fetchHtml = async (url: string): Promise<Document> => {
+    constructor(message: string, htmlText: string, stage: string, selector?: string) {
+        super(message);
+        this.name = 'ScrapingError';
+        this.htmlText = htmlText;
+        this.stage = stage;
+        this.selector = selector;
+    }
+}
+
+const fetchHtml = async (url: string): Promise<{ doc: Document, htmlText: string }> => {
     const proxiedUrl = `${CORS_PROXY}${encodeURIComponent(url)}`;
     try {
         const response = await fetch(proxiedUrl);
@@ -14,7 +30,8 @@ const fetchHtml = async (url: string): Promise<Document> => {
         }
         const htmlText = await response.text();
         const parser = new DOMParser();
-        return parser.parseFromString(htmlText, 'text/html');
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        return { doc, htmlText };
     } catch(error: any) {
         console.error(`Error fetching from proxied URL ${proxiedUrl}:`, error);
         throw new Error(`Failed to fetch from URL: ${url}. Reason: ${error.message}`);
@@ -27,44 +44,45 @@ const fetchHtml = async (url: string): Promise<Document> => {
 export const search = async (query: string, page: number, limit: number): Promise<{ results: SearchResult[], totalHits: number }> => {
     const offset = (page - 1) * limit;
     const searchUrl = `${BASE_URL}/w/index.php?search=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`;
+    const { doc, htmlText } = await fetchHtml(searchUrl);
 
-    const doc = await fetchHtml(searchUrl);
-
-    const results: SearchResult[] = [];
-    const searchResultsContainer = doc.querySelector('.mw-search-results-container');
-    
-    if (!searchResultsContainer) {
-        // This might happen if there's a direct match and redirect, or no results.
-        // Check for no results message.
-        const noResults = doc.querySelector('.mw-search-nonefound');
-        if (noResults) {
-            return { results: [], totalHits: 0 };
-        }
-        // If it's a direct page, we can treat it as a single result.
-        if (doc.querySelector('#mw-content-text')) {
-             const titleElement = doc.querySelector('h1#firstHeading');
-             const title = titleElement ? titleElement.textContent || query : query;
-             return {
-                 results: [{ title, snippet: 'Direct match for this article.' }],
-                 totalHits: 1,
-             };
-        }
-
-        throw new Error('Could not find search results container on the page.');
+    // Case 1: Search redirects directly to an article page
+    if (doc.querySelector('#mw-content-text .mw-parser-output')) {
+         const titleElement = doc.querySelector('h1#firstHeading');
+         const title = titleElement?.textContent?.trim() || query;
+         return {
+             results: [{ title, snippet: 'This search resulted in a direct match for the article.' }],
+             totalHits: 1,
+         };
     }
 
+    // Case 2: Standard search results page
+    const selector = 'ul.mw-search-results';
+    const searchResultsContainer = doc.querySelector(selector);
+    
+    if (!searchResultsContainer) {
+        // Case 3: No results found page
+        if (doc.querySelector('.mw-search-nonefound')) {
+            return { results: [], totalHits: 0 };
+        }
+        // Case 4: Unknown page structure, throw detailed error
+        throw new ScrapingError('Could not find search results container.', htmlText, 'Finding search results container', selector);
+    }
+    
+    const results: SearchResult[] = [];
     const resultElements = searchResultsContainer.querySelectorAll('li.mw-search-result');
     resultElements.forEach(li => {
         const titleAnchor = li.querySelector('.mw-search-result-heading a');
         const snippetDiv = li.querySelector('.searchresult');
 
-        if (titleAnchor && snippetDiv) {
+        if (titleAnchor) {
             const title = titleAnchor.textContent || '';
-            // Remove the size and date info from the snippet
-            const infoDiv = snippetDiv.querySelector('.search-result-meta');
-            if (infoDiv) infoDiv.remove();
-
-            const snippet = snippetDiv.textContent || '';
+            let snippet = snippetDiv?.textContent || '';
+            const infoDiv = snippetDiv?.querySelector('.search-result-meta');
+            if (infoDiv) {
+                // Clean up snippet by removing the metadata text
+                snippet = snippet.replace(infoDiv.textContent || '', '');
+            }
             
             results.push({
                 title: title.trim(),
@@ -73,7 +91,7 @@ export const search = async (query: string, page: number, limit: number): Promis
         }
     });
 
-    // Try to parse total hits for pagination
+    // Gracefully infer total hits if the element isn't found
     let totalHits = results.length;
     const resultsInfo = doc.querySelector('.results-info');
     if (resultsInfo) {
@@ -83,7 +101,7 @@ export const search = async (query: string, page: number, limit: number): Promis
             totalHits = parseInt(match[1].replace(/,/g, ''), 10);
         }
     } else if (results.length > 0) {
-        // Fallback if the info element isn't there
+        // Fallback: estimate total hits if the info element is missing
         totalHits = offset + results.length + (results.length === limit ? 1 : 0);
     }
     
@@ -95,16 +113,16 @@ export const search = async (query: string, page: number, limit: number): Promis
  */
 export const fetchArticle = async (title: string): Promise<string> => {
     const articleUrl = `${BASE_URL}/page/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+    const { doc, htmlText } = await fetchHtml(articleUrl);
     
-    const doc = await fetchHtml(articleUrl);
-    
-    const contentDiv = doc.querySelector('#mw-content-text .mw-parser-output');
+    const selector = '#mw-content-text .mw-parser-output';
+    const contentDiv = doc.querySelector(selector);
     
     if (!contentDiv) {
-        throw new Error('Could not find the main article content.');
+        throw new ScrapingError('Could not find the main article content.', htmlText, 'Finding article content container', selector);
     }
 
-    // Rewrite relative URLs to be absolute
+    // Rewrite relative URLs to be absolute to work in the app context
     contentDiv.querySelectorAll('a').forEach(a => {
         const href = a.getAttribute('href');
         if (href && href.startsWith('/')) {
