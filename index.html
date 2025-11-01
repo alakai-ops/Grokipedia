@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grokipedia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        overscroll-behavior: none;
+        font-family: sans-serif;
+      }
+      .font-serif {
+        font-family: 'Lora', serif;
+      }
+      .starry-background {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: -1;
+        background-color: #000;
+        background-image: 
+          radial-gradient(1px 1px at 20% 30%, white, transparent),
+          radial-gradient(1px 1px at 80% 10%, white, transparent),
+          radial-gradient(1px 1px at 50% 70%, #ccc, transparent),
+          radial-gradient(2px 2px at 90% 80%, #eee, transparent),
+          radial-gradient(1px 1px at 10% 90%, #ddd, transparent),
+          radial-gradient(1px 1px at 40% 50%, #aaa, transparent);
+        background-repeat: repeat;
+        background-size: 300px 300px;
+        animation: twinkle 15s linear infinite;
+      }
+      @keyframes twinkle {
+        from { transform: translateY(0); }
+        to { transform: translateY(-300px); }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.28.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-error-boundary": "https://aistudiocdn.com/react-error-boundary@^6.0.0",
+    "marked": "https://aistudiocdn.com/marked@^16.4.1"
+  }
+}
+</script>
+</head>
+  <body class="bg-black">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
