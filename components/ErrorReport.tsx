@@ -9,12 +9,12 @@ import CheckIcon from './icons/CheckIcon';
 import { marked } from 'marked';
 
 
-interface ErrorReportProps {
+interface ErrorDisplayProps {
   report: ErrorReportData;
   onClose: () => void;
 }
 
-const ErrorReport: React.FC<ErrorReportProps> = ({ report, onClose }) => {
+const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ report, onClose }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState('');
   const [copied, setCopied] = useState(false);
@@ -27,7 +27,7 @@ const ErrorReport: React.FC<ErrorReportProps> = ({ report, onClose }) => {
       const html = await marked.parse(result);
       setAnalysis(html);
     } catch (err) {
-      setAnalysis('<p>Failed to analyze error. Please check the console for details.</p>');
+      setAnalysis('<p class="text-red-400">Failed to analyze error. The AI service may be unavailable.</p>');
     } finally {
       setIsAnalyzing(false);
     }
@@ -35,12 +35,23 @@ const ErrorReport: React.FC<ErrorReportProps> = ({ report, onClose }) => {
   
   const handleCopy = () => {
     const reportString = `
-Error: ${report.error}
-Timestamp: ${report.timestamp}
-URL: ${report.url}
-User Agent: ${report.userAgent}
-Component Stack:
-${report.componentStack}
+## Grokipedia Error Report
+
+**Message:**
+${report.error}
+
+**Raw Error:**
+${report.rawError || 'N/A'}
+
+**Failed URL:** ${report.targetUrl || 'N/A'}
+**Timestamp:** ${report.timestamp}
+**App URL:** ${report.url}
+**User Agent:** ${report.userAgent}
+
+**Component Stack:**
+\`\`\`
+${report.componentStack || 'N/A'}
+\`\`\`
     `;
     navigator.clipboard.writeText(reportString.trim());
     setCopied(true);
@@ -49,72 +60,76 @@ ${report.componentStack}
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 animate-fade-in-fast">
-      <div className="bg-[#1e1e1e] border border-gray-700 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="bg-[#1e1e1e] border border-red-900/50 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         <header className="flex items-center justify-between p-4 border-b border-gray-700">
           <div className="flex items-center space-x-3">
-             <DebugIcon className="w-6 h-6 text-yellow-400"/>
-            <h2 className="text-xl font-semibold text-gray-200">Error Report</h2>
+             <DebugIcon className="w-6 h-6 text-red-400"/>
+            <h2 className="text-xl font-semibold text-gray-200">Application Error</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-full text-gray-400 hover:bg-gray-700"
-            aria-label="Close error report"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </header>
 
-        <div className="p-4 overflow-y-auto">
-          <div className="space-y-4 text-gray-300">
-            <div>
-              <h3 className="font-semibold text-red-400">Error Message</h3>
-              <pre className="mt-1 p-2 bg-black/30 rounded text-sm whitespace-pre-wrap font-mono">{report.error}</pre>
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-400">Component Stack</h3>
-              <pre className="mt-1 p-2 bg-black/30 rounded text-sm whitespace-pre-wrap font-mono">{report.componentStack}</pre>
-            </div>
-            <details className="text-xs text-gray-500">
-                <summary className="cursor-pointer">More Details</summary>
-                <div className="pt-2 pl-4">
-                    <p><strong>URL:</strong> {report.url}</p>
-                    <p><strong>Timestamp:</strong> {report.timestamp}</p>
-                    <p><strong>User Agent:</strong> {report.userAgent}</p>
+        <div className="p-6 overflow-y-auto space-y-4">
+            <p className="text-gray-300 bg-red-900/30 p-3 rounded-md border border-red-800/50">{report.error}</p>
+          
+            <details className="text-sm text-gray-400 bg-black/30 p-3 rounded-md">
+                <summary className="cursor-pointer font-medium hover:text-gray-200">Show Technical Details</summary>
+                <div className="pt-3 mt-2 border-t border-gray-700/50 space-y-2 font-mono text-xs">
+                    {report.rawError && <div><strong className="text-gray-500">Raw Error:</strong> <pre className="whitespace-pre-wrap">{report.rawError}</pre></div>}
+                    {report.targetUrl && <div><strong className="text-gray-500">Target URL:</strong> <pre className="whitespace-pre-wrap break-all">{report.targetUrl}</pre></div>}
+                    {report.componentStack && <div><strong className="text-gray-500">Component Stack:</strong> <pre className="whitespace-pre-wrap">{report.componentStack}</pre></div>}
+                    <div><strong className="text-gray-500">App URL:</strong> {report.url}</div>
+                    <div><strong className="text-gray-500">Timestamp:</strong> {report.timestamp}</div>
+                    <div><strong className="text-gray-500">User Agent:</strong> {report.userAgent}</div>
                 </div>
             </details>
-          </div>
           
-           <div className="mt-6 border-t border-gray-700 pt-4">
-              <div className="flex items-center justify-between">
-                 <h3 className="font-semibold text-gray-200">Gemini Analysis</h3>
-                 <div className="flex items-center space-x-2">
-                    <button onClick={handleCopy} className="p-2 rounded-md hover:bg-gray-700 transition-colors flex items-center space-x-1.5 text-xs text-gray-400">
-                        {copied ? <CheckIcon className="w-4 h-4 text-green-400" /> : <CopyIcon className="w-4 h-4" />}
-                        <span>{copied ? 'Copied!' : 'Copy Report'}</span>
-                    </button>
-                    <button
-                        onClick={handleAnalyze}
-                        disabled={isAnalyzing}
-                        className="px-3 py-1.5 bg-gray-600 text-white rounded-md hover:bg-gray-500 disabled:opacity-50 disabled:cursor-wait transition-colors text-sm font-medium"
-                    >
-                        {isAnalyzing ? 'Analyzing...' : 'Analyze with Gemini'}
-                    </button>
-                 </div>
-              </div>
-              {isAnalyzing && <LoadingSpinner />}
-              {analysis && (
+           <div className="border-t border-gray-700 pt-4">
+              <h3 className="font-semibold text-gray-200 mb-2">Diagnostics</h3>
+              {isAnalyzing ? <LoadingSpinner /> : (
+                analysis ? (
                  <div
-                    className="prose prose-sm prose-invert mt-4 max-w-none p-3 bg-black/30 rounded"
+                    className="prose prose-sm prose-invert mt-2 max-w-none p-3 bg-black/30 rounded"
                     dangerouslySetInnerHTML={{ __html: analysis }}
                 />
+                ) : (
+                <p className="text-sm text-gray-500">Use Gemini to get a technical analysis of this error.</p>
+                )
               )}
            </div>
         </div>
+
+        <footer className="flex items-center justify-between p-4 border-t border-gray-700 bg-black/20">
+            <div className="flex items-center space-x-2">
+                <button
+                    onClick={handleAnalyze}
+                    disabled={isAnalyzing}
+                    className="px-3 py-1.5 bg-gray-600 text-white rounded-md hover:bg-gray-500 disabled:opacity-50 disabled:cursor-wait transition-colors text-sm font-medium"
+                >
+                    {isAnalyzing ? 'Analyzing...' : 'Analyze with Gemini'}
+                </button>
+                 <button onClick={handleCopy} className="px-3 py-1.5 rounded-md hover:bg-gray-700 transition-colors flex items-center space-x-1.5 text-xs text-gray-400 border border-gray-600">
+                    {copied ? <CheckIcon className="w-4 h-4 text-green-400" /> : <CopyIcon className="w-4 h-4" />}
+                    <span>{copied ? 'Copied!' : 'Copy Full Report'}</span>
+                </button>
+            </div>
+             <div className="flex items-center space-x-2">
+                 <button
+                    onClick={() => window.location.reload()}
+                    className="px-3 py-1.5 bg-blue-800/50 text-blue-200 rounded-md hover:bg-blue-800 transition-colors text-sm font-medium"
+                >
+                    Reload App
+                </button>
+                <button
+                    onClick={onClose}
+                    className="px-3 py-1.5 bg-gray-700 text-gray-200 rounded-md hover:bg-gray-600 transition-colors text-sm font-medium"
+                >
+                    Close
+                </button>
+             </div>
+        </footer>
       </div>
     </div>
   );
 };
 
-export default ErrorReport;
+export default ErrorDisplay;

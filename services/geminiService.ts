@@ -54,19 +54,22 @@ export const analyzeError = async (report: ErrorReportData): Promise<string> => 
         const model = 'gemini-2.5-pro'; // Use pro for complex analysis
         const prompt = `
             Analyze the following frontend application error report from Grokipedia mobile experience app.
-            The app's purpose is to be a mobile-friendly wrapper for grokipedia.com.
+            The app's purpose is to be a mobile-friendly wrapper for grokipedia.com, and it scrapes the website directly.
             Provide a concise, technical explanation of the likely root cause and suggest a potential solution or debugging steps.
+            Consider CORS issues (TypeError: Failed to fetch), network issues, website HTML structure changes (scraping errors), or React rendering bugs.
             Format the response in Markdown.
 
             **Error Details:**
-            - Message: ${report.error}
+            - User-Facing Message: ${report.error}
+            - Raw Error/Exception: ${report.rawError || 'N/A'}
+            - Failed URL: ${report.targetUrl || 'N/A'}
             - Timestamp: ${report.timestamp}
-            - URL: ${report.url}
+            - App URL: ${report.url}
             - User Agent: ${report.userAgent}
             
-            **Component Stack:**
+            **React Component Stack (if applicable):**
             \`\`\`
-            ${report.componentStack}
+            ${report.componentStack || 'N/A'}
             \`\`\`
         `;
         
@@ -87,7 +90,7 @@ export const analyzeVisualIssue = async (report: VisualIssueReport): Promise<str
         const model = 'gemini-2.5-pro';
         const prompt = `
             Analyze a user-reported visual/layout issue for an article in the Grokipedia mobile experience app.
-            The app renders Wikipedia content in a custom "reader mode". It programmatically parses the article HTML,
+            The app renders Grokipedia content in a custom "reader mode". It programmatically parses the article HTML,
             separates main text from side content (like infoboxes, images with classes .infobox, .thumb, .tright, .floatright), 
             and displays them in a responsive two-column layout on larger screens (main content left, side content right).
             

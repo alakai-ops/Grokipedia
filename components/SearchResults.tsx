@@ -36,7 +36,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({
       <div className="space-y-3">
         {results.map((result) => (
           <button
-            key={result.pageid}
+            key={result.title}
             onClick={() => onArticleClick(result.title)}
             className="w-full text-left p-4 bg-[#181818] rounded-lg border border-gray-800 hover:bg-gray-800/50 hover:border-gray-700 transition-all duration-200 flex justify-between items-center group"
           >

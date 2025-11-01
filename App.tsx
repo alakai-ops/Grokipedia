@@ -8,10 +8,11 @@ import ArticleDisplay from './components/ArticleDisplay';
 import SavedArticles from './components/SavedArticles';
 import MindMap from './components/MindMap';
 import LoadingSpinner from './components/LoadingSpinner';
-import ErrorReport from './components/ErrorReport';
+import ErrorDisplay from './components/ErrorReport';
 import SaveOptionsModal from './components/SaveOptionsModal';
 import * as geminiService from './services/geminiService';
 import * as exportService from './services/exportService';
+import * as grokipediaService from './services/grokipediaService';
 import type { SearchResult, ArticleData, SavedArticle, MindMapData, ErrorReportData } from './types';
 
 type View = 'welcome' | 'searching' | 'results' | 'article' | 'saved' | 'mindmap';
@@ -30,7 +31,7 @@ const AppComponent: React.FC = () => {
   const [mindMapData, setMindMapData] = useState<MindMapData | null>(null);
   const [mindMapCenterNode, setMindMapCenterNode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [globalError, setGlobalError] = useState<ErrorReportData | null>(null);
   const [saveModalArticle, setSaveModalArticle] = useState<ArticleData | null>(null);
   const [canShare, setCanShare] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
@@ -72,32 +73,34 @@ const AppComponent: React.FC = () => {
     if (!searchQuery.trim()) return;
 
     setIsLoading(true);
-    setError(null);
+    setGlobalError(null);
     setQuery(searchQuery);
     setCurrentPage(page);
     setView('searching');
     
-    // Update search history
     const trimmedQuery = searchQuery.trim();
     setSearchHistory(prev => {
         const newHistory = [trimmedQuery, ...prev.filter(item => item.toLowerCase() !== trimmedQuery.toLowerCase())];
         return newHistory.slice(0, MAX_HISTORY_ITEMS);
     });
     
-    const endpoint = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchQuery)}&srlimit=${ITEMS_PER_PAGE}&sroffset=${(page - 1) * ITEMS_PER_PAGE}&format=json&origin=*`;
-
     try {
-      const response = await fetch(endpoint);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-
-      if (data.error) throw new Error(data.error.info);
-      
-      setSearchResults(data.query.search);
-      setTotalHits(data.query.searchinfo.totalhits);
+      const searchData = await grokipediaService.search(searchQuery, page, ITEMS_PER_PAGE);
+      setSearchResults(searchData.results);
+      setTotalHits(searchData.totalHits);
       setView('results');
     } catch (e: any) {
-      setError(`Failed to fetch search results. Please try again. Error: ${e.message}`);
+      const offset = (page - 1) * ITEMS_PER_PAGE;
+      const searchUrl = `${grokipediaService.BASE_URL}/w/index.php?search=${encodeURIComponent(searchQuery)}&limit=${ITEMS_PER_PAGE}&offset=${offset}`;
+      setGlobalError({
+        error: `Failed to fetch search results for "${searchQuery}". The website might be temporarily unavailable or has changed its structure.`,
+        rawError: e.toString(),
+        targetUrl: searchUrl,
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        details: ''
+      });
       setView('welcome');
     } finally {
       setIsLoading(false);
@@ -106,23 +109,25 @@ const AppComponent: React.FC = () => {
 
   const handleArticleClick = useCallback(async (title: string) => {
     setIsLoading(true);
-    setError(null);
+    setGlobalError(null);
     setQuery(title);
     setView('searching');
 
-    const endpoint = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=text&format=json&origin=*`;
-
     try {
-      const response = await fetch(endpoint);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      
-      if (data.error) throw new Error(data.error.info);
-
-      setCurrentArticle({ query: title, content: data.parse.text['*'] });
+      const articleContent = await grokipediaService.fetchArticle(title);
+      setCurrentArticle({ query: title, content: articleContent });
       setView('article');
     } catch (e: any) {
-      setError(`Failed to load article: "${title}". Error: ${e.message}`);
+      const articleUrl = `${grokipediaService.BASE_URL}/page/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+      setGlobalError({
+        error: `Failed to load the article "${title}". It might not exist or there was a network issue.`,
+        rawError: e.toString(),
+        targetUrl: articleUrl,
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        details: ''
+      });
       setView(searchResults.length > 0 ? 'results' : 'welcome');
     } finally {
       setIsLoading(false);
@@ -156,7 +161,6 @@ const AppComponent: React.FC = () => {
       await navigator.share(shareData);
     } catch (err) {
       console.error("Share failed:", err);
-      // Fail silently as the user may have cancelled the share action
     }
   };
 
@@ -172,7 +176,7 @@ const AppComponent: React.FC = () => {
   
   const handleExplore = useCallback(async (topic: string) => {
     setIsLoading(true);
-    setError(null);
+    setGlobalError(null);
     const prevView = view;
     setView('searching');
     setMindMapCenterNode(topic);
@@ -181,7 +185,14 @@ const AppComponent: React.FC = () => {
         setMindMapData(data);
         setView('mindmap');
     } catch (e: any) {
-        setError(e.message || "An unknown error occurred while exploring topics.");
+        setGlobalError({
+            error: "Failed to generate the mind map using the AI service.",
+            rawError: e.toString(),
+            timestamp: new Date().toISOString(),
+            url: window.location.href,
+            userAgent: navigator.userAgent,
+            details: ''
+        });
         setView(prevView);
     } finally {
         setIsLoading(false);
@@ -189,7 +200,7 @@ const AppComponent: React.FC = () => {
   }, [view]);
 
   const handleBack = () => {
-    setError(null);
+    setGlobalError(null);
     switch (view) {
       case 'article':
         setView(searchResults.length > 0 ? 'results' : 'welcome');
@@ -216,14 +227,7 @@ const AppComponent: React.FC = () => {
     
     switch (view) {
       case 'welcome':
-        return (
-          <Welcome
-            onSearch={(q) => handleSearch(q, 1)}
-            isLoading={isLoading}
-            searchHistory={searchHistory}
-            onClearHistory={handleClearHistory}
-          />
-        );
+        return <Welcome onSearch={(q) => handleSearch(q, 1)} isLoading={isLoading} searchHistory={searchHistory} onClearHistory={handleClearHistory}/>;
       case 'results':
         return (
           <>
@@ -246,14 +250,7 @@ const AppComponent: React.FC = () => {
       case 'mindmap':
         return mindMapData ? <MindMap centerNode={mindMapCenterNode} data={mindMapData} /> : <LoadingSpinner />;
       default:
-        return (
-          <Welcome
-            onSearch={(q) => handleSearch(q, 1)}
-            isLoading={isLoading}
-            searchHistory={searchHistory}
-            onClearHistory={handleClearHistory}
-          />
-        );
+        return <Welcome onSearch={(q) => handleSearch(q, 1)} isLoading={isLoading} searchHistory={searchHistory} onClearHistory={handleClearHistory} />;
     }
   };
 
@@ -275,9 +272,14 @@ const AppComponent: React.FC = () => {
         showShare={view === 'article' && canShare}
       />
       <main className="max-w-3xl mx-auto px-4 pt-24 pb-12">
-        {error && <div className="bg-red-900/50 border border-red-700 text-red-300 p-4 rounded-lg mb-6">{error}</div>}
         {renderContent()}
       </main>
+      {globalError && (
+          <ErrorDisplay 
+            report={globalError} 
+            onClose={() => setGlobalError(null)} 
+          />
+      )}
       {saveModalArticle && (
         <SaveOptionsModal
           isOpen={!!saveModalArticle}
@@ -302,15 +304,17 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, { repor
   }
 
   static getDerivedStateFromError(error: Error) {
-    // This will be caught by componentDidCatch to get more info
-    return {};
+    // This is a static method, so we can't do much here,
+    // but it's required for the error boundary to trigger `componentDidCatch`.
+    return { hasError: true };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("Uncaught error:", error, errorInfo);
+    console.error("Uncaught React error:", error, errorInfo);
     this.setState({
         report: {
-            error: error.toString(),
+            error: "A critical error occurred in the application's user interface.",
+            rawError: error.toString(),
             componentStack: errorInfo.componentStack || 'N/A',
             timestamp: new Date().toISOString(),
             url: window.location.href,
@@ -324,7 +328,7 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, { repor
     if (this.state.report) {
       return (
         <div className="min-h-screen bg-[#121212] flex items-center justify-center">
-            <ErrorReport report={this.state.report} onClose={() => this.setState({ report: null })} />
+            <ErrorDisplay report={this.state.report} onClose={() => this.setState({ report: null })} />
         </div>
       );
     }
